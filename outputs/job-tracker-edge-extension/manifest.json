@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "Job Tracker v1.4.5",
+  "name": "Job Tracker v1.4.6",
   "description": "Microsoft Edge version: capture job application details from recruiting pages and manage records locally.",
-  "version": "1.4.5",
+  "version": "1.4.6",
   "action": {
-    "default_title": "Job Tracker v1.4.5",
+    "default_title": "Job Tracker v1.4.6",
     "default_popup": "popup.html"
   },
   "permissions": [

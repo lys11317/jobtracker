@@ -2,7 +2,7 @@
 
 本项目是一个本地求职记录管理工具，包含 Chrome 和 Microsoft Edge 浏览器插件。插件可以从招聘页面读取公司、职位、投递时间、投递状态和链接，并在本地管理、筛选、编辑、导入或导出 CSV。
 
-当前版本：`v1.4.5`
+当前版本：`v1.4.6`
 
 ## 目录
 
@@ -47,4 +47,3 @@
 Invoke-Expression -Command ([System.IO.File]::ReadAllText((Resolve-Path '.\work\test_job_tracker_extension.ps1'), [System.Text.Encoding]::UTF8))
 Invoke-Expression -Command ([System.IO.File]::ReadAllText((Resolve-Path '.\work\test_job_tracker_edge_extension.ps1'), [System.Text.Encoding]::UTF8))
 ```
-

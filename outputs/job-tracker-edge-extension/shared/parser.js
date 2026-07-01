@@ -67,6 +67,11 @@
       return [];
     }
 
+    const mokahrCandidates = parseMokahrApplicationCards(context);
+    if (mokahrCandidates.length > 0) {
+      return mokahrCandidates;
+    }
+
     const hotjobCandidates = parseHotjobApplicationCards(context);
     if (hotjobCandidates.length > 0) {
       return hotjobCandidates;
@@ -144,7 +149,81 @@
 
   function hasApplicationCardMarkers(text) {
     return /投递时间[:：]/.test(text)
-      || /进入面试环节|修改简历|个人中心|我的申请|我的投递|第一意向|已完成的投递|校园招聘 \||第\s*\d+\s*志愿|第 1 志愿|投递简历|最近投递|投递成功/.test(text);
+      || /进入面试环节|修改简历|个人中心|我的申请|我的投递|第一意向|已完成的投递|投递记录|项目：|校园招聘 \||第\s*\d+\s*志愿|第 1 志愿|投递简历|最近投递|投递成功/.test(text);
+  }
+
+  function parseMokahrApplicationCards(context) {
+    const lines = context.lines;
+    if (!isMokahrHost(context.host) || !/投递记录/.test(context.visibleText) || !/项目[:：]/.test(context.visibleText)) {
+      return [];
+    }
+
+    const roleRows = lines.map((line, index) => extractMokahrApplicationRoleRow(lines, index)).filter(Boolean);
+    const candidates = [];
+    const seen = new Set();
+    roleRows.forEach((row, rowIndex) => {
+      const nextRoleIndex = roleRows[rowIndex + 1] ? roleRows[rowIndex + 1].index : lines.length;
+      const cardLines = lines.slice(row.index, nextRoleIndex);
+      const cardText = cardLines.join("\n");
+      const appliedDate = extractAppliedDate(cardText) || extractStandaloneDate(cardText) || context.today;
+      const company = sanitizeCompanyName(firstNonEmpty(
+        inferCompanyFromTitle(context.titleText),
+        inferCompanyFromVisibleText(lines),
+        inferCompanyFromHost(context.host)
+      ));
+      const statusText = extractMokahrStatusText(cardLines);
+      const key = [company, row.role, appliedDate].join("|");
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      candidates.push({
+        company,
+        role: row.role,
+        appliedDate,
+        channel: inferChannelFromLines(cardLines) || inferChannel(context.host),
+        jobLink: location.href,
+        statusLink: location.href,
+        status: inferApplicationStatus(statusText || cardText),
+        statusUpdatedDate: appliedDate,
+        notes: ""
+      });
+    });
+
+    return candidates;
+  }
+
+  function isMokahrHost(host) {
+    return host === "app.mokahr.com" || host.endsWith(".mokahr.com");
+  }
+
+  function extractMokahrApplicationRoleRow(lines, index) {
+    const role = cleanText(lines[index]);
+    if (!isPlausibleMokahrApplicationRole(role) || !/^项目[:：]/.test(cleanText(lines[index + 1]))) {
+      return null;
+    }
+    return {
+      index,
+      role
+    };
+  }
+
+  function isPlausibleMokahrApplicationRole(line) {
+    const value = cleanText(line);
+    if (!value || !/[\u4e00-\u9fa5]/.test(value)) {
+      return false;
+    }
+    if (/返回|我的简历|投递记录|个人资料|修改申请|撤回|简历初筛|业务复筛|面试安排|Offer沟通|录用|Powered by|Moka|项目[:：]/i.test(value)) {
+      return false;
+    }
+    if (/^\d{1,2}:\d{2}$/.test(value)) {
+      return false;
+    }
+    return true;
+  }
+
+  function extractMokahrStatusText(lines) {
+    return lines.find((line) => /简历初筛|业务复筛|面试安排|Offer沟通|录用|筛选|面试|Offer|未通过|已拒绝/.test(line)) || "";
   }
 
   function parseHotjobApplicationCards(context) {
@@ -602,7 +681,7 @@
     if (/技术一面|一面|初面/.test(value)) return "技术一面";
     if (/进入面试环节|面试环节|面试/.test(value)) return "等待一面";
     if (/测评|笔试/.test(value)) return "测评 / 笔试";
-    if (/简历评估|筛选|处理中/.test(value)) return "简历筛选中";
+    if (/简历评估|简历初筛|初筛|复筛|筛选|处理中/.test(value)) return "简历筛选中";
     if (/已查看/.test(value)) return "已查看";
     if (/官网投递|投递简历/.test(value)) return "已投递";
     return "已投递";
@@ -711,7 +790,12 @@
   function inferCompanyFromTitle(text) {
     const parts = text.split(/\s[-|｜]\s/).map(cleanText).filter(Boolean);
     if (parts.length >= 2) {
-      return sanitizeCompanyName(parts[parts.length - 1]);
+      for (let index = parts.length - 1; index >= 0; index -= 1) {
+        const candidate = sanitizeCompanyName(parts[index]);
+        if (candidate && !isGenericRecruitingTitlePart(candidate)) {
+          return candidate;
+        }
+      }
     }
     const cleaned = sanitizeCompanyName(text);
     const knownBrand = cleaned.match(/^(DJI\s*大疆|大疆|新凯来|三环集团|拓竹科技)/i);
@@ -723,6 +807,11 @@
       return sanitizeCompanyName(companyMatch[1]);
     }
     return "";
+  }
+
+  function isGenericRecruitingTitlePart(value) {
+    const cleaned = sanitizeCompanyName(value);
+    return /^(校园|社会|校招|社招|招聘|职位|申请职位|人才招聘|校园招聘|社会招聘|招聘官网|招聘门户|加入我们|Moka)$/i.test(cleaned);
   }
 
   function inferCompanyFromHost(host) {
