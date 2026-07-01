@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Job Tracker v1.4.5</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="popup-shell">
+    <header class="popup-header">
+      <div>
+        <p class="eyebrow">Capture</p>
+        <h1>Add to Job Tracker v1.4.5</h1>
+      </div>
+      <button class="button button-secondary" id="open-dashboard-button" type="button">管理器</button>
+    </header>
+
+    <div class="notice" id="capture-message">正在读取当前页面信息...</div>
+
+    <section class="candidate-panel" id="candidate-panel" hidden>
+      <div class="candidate-heading">候选投递记录</div>
+      <div class="candidate-list" id="candidate-list"></div>
+    </section>
+
+    <form id="capture-form">
+      <div class="form-grid">
+        <label class="field">
+          <span>公司名称</span>
+          <input name="company" type="text" required>
+        </label>
+        <label class="field">
+          <span>申请职位</span>
+          <input name="role" type="text" required>
+        </label>
+        <label class="field">
+          <span>投递时间</span>
+          <input name="appliedDate" type="date" required>
+        </label>
+        <label class="field">
+          <span>投递渠道</span>
+          <input name="channel" type="text">
+        </label>
+        <label class="field">
+          <span>职位链接/JD链接</span>
+          <input name="jobLink" type="url">
+        </label>
+        <label class="field">
+          <span>查看投递状态界面</span>
+          <input name="statusLink" type="url">
+        </label>
+        <label class="field">
+          <span>投递状态</span>
+          <select id="status-select" name="status" required></select>
+        </label>
+        <label class="field">
+          <span>状态更新时间</span>
+          <input name="statusUpdatedDate" type="date" required>
+        </label>
+        <label class="field field-full">
+          <span>备注</span>
+          <textarea name="notes" rows="4" placeholder="公司名称、职位或时间可能来自页面标题、域名或页面描述，保存前请确认。"></textarea>
+        </label>
+      </div>
+
+      <div class="status-row">
+        <span>当前状态</span>
+        <strong class="status-chip status--submitted" id="status-preview">已投递</strong>
+      </div>
+
+      <div class="actions">
+        <button class="button button-secondary" id="read-page-button" type="button">重新读取</button>
+        <button class="button button-primary" type="submit">保存记录</button>
+      </div>
+    </form>
+  </main>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

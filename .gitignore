@@ -1,0 +1,15 @@
+# Packaged extension builds
+outputs/*.zip
+
+# Historical unpacked snapshots
+outputs/job-tracker-extension-v*/
+
+# Runtime logs
+work/*.log
+
+# Local/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
