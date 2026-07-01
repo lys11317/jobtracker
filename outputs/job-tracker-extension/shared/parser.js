@@ -67,6 +67,16 @@
       return [];
     }
 
+    const successFactorsCandidates = parseSuccessFactorsApplicationCards(context);
+    if (successFactorsCandidates.length > 0) {
+      return successFactorsCandidates;
+    }
+
+    const workdayCandidates = parseWorkdayApplicationCards(context);
+    if (workdayCandidates.length > 0) {
+      return workdayCandidates;
+    }
+
     const mokahrCandidates = parseMokahrApplicationCards(context);
     if (mokahrCandidates.length > 0) {
       return mokahrCandidates;
@@ -149,7 +159,170 @@
 
   function hasApplicationCardMarkers(text) {
     return /投递时间[:：]/.test(text)
-      || /进入面试环节|修改简历|个人中心|我的申请|我的投递|第一意向|已完成的投递|投递记录|项目：|校园招聘 \||第\s*\d+\s*志愿|第 1 志愿|投递简历|最近投递|投递成功/.test(text);
+      || /进入面试环节|修改简历|个人中心|我的申请|我的投递|第一意向|已完成的投递|投递记录|项目：|校园招聘 \||第\s*\d+\s*志愿|第 1 志愿|投递简历|最近投递|投递成功/.test(text)
+      || /Review your applications|Applied On:|Requisition ID:|My Applications|Date Submitted|Under Consideration/.test(text);
+  }
+
+  function parseSuccessFactorsApplicationCards(context) {
+    const lines = context.lines;
+    if (!isSuccessFactorsHost(context.host) || !/Review your applications|Applied On:/.test(context.visibleText)) {
+      return [];
+    }
+
+    const roleRows = lines.map((line, index) => extractSuccessFactorsApplicationRoleRow(lines, index)).filter(Boolean);
+    const company = inferSuccessFactorsCompany(lines, context.titleText, context.host);
+    return roleRows.map((row) => {
+      const cardLines = lines.slice(row.index, Math.min(lines.length, row.endIndex + 6));
+      const cardText = cardLines.join("\n");
+      const appliedDate = extractSuccessFactorsAppliedDate(cardText) || context.today;
+      const statusText = extractSuccessFactorsStatusText(cardLines);
+      return {
+        company,
+        role: row.role,
+        appliedDate,
+        channel: inferChannel(context.host),
+        jobLink: location.href,
+        statusLink: location.href,
+        status: inferApplicationStatus(statusText || cardText),
+        statusUpdatedDate: appliedDate,
+        notes: ""
+      };
+    });
+  }
+
+  function isSuccessFactorsHost(host) {
+    return host.includes("successfactors");
+  }
+
+  function extractSuccessFactorsApplicationRoleRow(lines, index) {
+    const firstLine = cleanText(lines[index]);
+    if (!isPlausibleSuccessFactorsApplicationRole(firstLine)) {
+      return null;
+    }
+    const roleParts = [firstLine];
+    let requisitionIndex = -1;
+    for (let offset = 1; offset <= 4; offset += 1) {
+      const line = cleanText(lines[index + offset]);
+      if (/^Requisition ID:/i.test(line)) {
+        requisitionIndex = index + offset;
+        break;
+      }
+      if (line && isPlausibleSuccessFactorsApplicationRole(line)) {
+        roleParts.push(line);
+      }
+    }
+    if (requisitionIndex === -1) {
+      return null;
+    }
+    return {
+      index,
+      endIndex: requisitionIndex,
+      role: cleanText(roleParts.join(" "))
+    };
+  }
+
+  function isPlausibleSuccessFactorsApplicationRole(line) {
+    const value = cleanText(line);
+    if (!value || !/[A-Za-z]/.test(value)) {
+      return false;
+    }
+    if (/^(BASF|We create chemistry|My Applications|Please note|Review your applications|Requisition ID:|Applied On:|Location:|Privacy policy|Careers Home|Explore all job opportunities)$/i.test(value)) {
+      return false;
+    }
+    if (/Thanks for your application|feedback on your application|Follow Us|Company|Copyright|Data Protection|Contact|Credits/i.test(value)) {
+      return false;
+    }
+    return true;
+  }
+
+  function inferSuccessFactorsCompany(lines, titleText, host) {
+    if (lines.some((line) => /^BASF$/i.test(cleanText(line)))) {
+      return "BASF";
+    }
+    return sanitizeCompanyName(firstNonEmpty(
+      inferCompanyFromTitle(titleText),
+      inferCompanyFromHost(host)
+    ));
+  }
+
+  function extractSuccessFactorsAppliedDate(text) {
+    const match = String(text || "").match(/Applied On:\s*([A-Za-z]{3,9}\s+\d{1,2},\s*\d{4})/i);
+    return match ? parseEnglishDate(match[1]) : "";
+  }
+
+  function extractSuccessFactorsStatusText(lines) {
+    return lines.find((line) => /Thanks for your application|feedback on your application|Under Consideration|Submitted|Application Received/i.test(line)) || "";
+  }
+
+  function parseWorkdayApplicationCards(context) {
+    const lines = context.lines;
+    if (!isWorkdayHost(context.host) || !/My Applications/.test(context.visibleText) || !/Date Submitted/.test(context.visibleText)) {
+      return [];
+    }
+
+    const roleRows = lines.map((line, index) => extractWorkdayApplicationRoleRow(lines, index)).filter(Boolean);
+    const company = inferWorkdayCompany(lines, context.titleText, context.host);
+    return roleRows.map((row) => ({
+      company,
+      role: row.role,
+      appliedDate: row.appliedDate || context.today,
+      channel: inferChannel(context.host),
+      jobLink: location.href,
+      statusLink: location.href,
+      status: inferApplicationStatus(row.statusText),
+      statusUpdatedDate: row.appliedDate || context.today,
+      notes: ""
+    }));
+  }
+
+  function isWorkdayHost(host) {
+    return host.endsWith("myworkdaysite.com") || host.includes("workday");
+  }
+
+  function extractWorkdayApplicationRoleRow(lines, index) {
+    const role = cleanText(lines[index]);
+    const jobReq = cleanText(lines[index + 1]);
+    const statusText = cleanText(lines[index + 2]);
+    const submittedDate = cleanText(lines[index + 3]);
+    if (!isPlausibleWorkdayApplicationRole(role) || !/^[A-Z]+[-\s]?\d+/i.test(jobReq) || !parseEnglishDate(submittedDate)) {
+      return null;
+    }
+    return {
+      index,
+      role,
+      jobReq,
+      statusText,
+      appliedDate: parseEnglishDate(submittedDate)
+    };
+  }
+
+  function isPlausibleWorkdayApplicationRole(line) {
+    const value = cleanText(line);
+    if (!value || !/[A-Za-z]/.test(value)) {
+      return false;
+    }
+    if (/^(Job Title|Job Req|My Application Status|Date Submitted|Action|My Applications|My Tasks|Similar Jobs|About Us|Candidate Home|Careers at ONTO)$/i.test(value)) {
+      return false;
+    }
+    if (/Welcome,|You have no tasks|Under Consideration|Inactive|Active \(|Read More|Onto Innovation is/i.test(value)) {
+      return false;
+    }
+    return true;
+  }
+
+  function inferWorkdayCompany(lines, titleText, host) {
+    const text = lines.join("\n");
+    if (/Onto Innovation/i.test(text) || /Careers at ONTO/i.test(text)) {
+      return "Onto Innovation";
+    }
+    const careersLine = lines.find((line) => /^Careers at\s+/i.test(cleanText(line)));
+    if (careersLine) {
+      return cleanText(careersLine.replace(/^Careers at\s+/i, ""));
+    }
+    return sanitizeCompanyName(firstNonEmpty(
+      inferCompanyFromTitle(titleText),
+      inferCompanyFromHost(host)
+    ));
   }
 
   function parseMokahrApplicationCards(context) {
@@ -620,6 +793,33 @@
     return match ? normalizeDate(match[1]) : "";
   }
 
+  function parseEnglishDate(text) {
+    const match = String(text || "").match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(\d{1,2}),\s*(\d{4})\b/i);
+    if (!match) {
+      return "";
+    }
+    const monthKey = match[1].slice(0, 3).toLowerCase();
+    const months = {
+      jan: "01",
+      feb: "02",
+      mar: "03",
+      apr: "04",
+      may: "05",
+      jun: "06",
+      jul: "07",
+      aug: "08",
+      sep: "09",
+      oct: "10",
+      nov: "11",
+      dec: "12"
+    };
+    const month = months[monthKey];
+    if (!month) {
+      return "";
+    }
+    return [match[3], month, match[2].padStart(2, "0")].join("-");
+  }
+
   function inferPreferenceChannel(lines) {
     const text = lines.join("\n");
     if (/官网投递/.test(text)) return "官网投递";
@@ -682,7 +882,9 @@
     if (/进入面试环节|面试环节|面试/.test(value)) return "等待一面";
     if (/测评|笔试/.test(value)) return "测评 / 笔试";
     if (/简历评估|简历初筛|初筛|复筛|筛选|处理中/.test(value)) return "简历筛选中";
+    if (/Under Consideration|In Review|In Progress|Review/i.test(value)) return "简历筛选中";
     if (/已查看/.test(value)) return "已查看";
+    if (/Thanks for your application|Application Received|Submitted|Applied/i.test(value)) return "已投递";
     if (/官网投递|投递简历/.test(value)) return "已投递";
     return "已投递";
   }
@@ -822,7 +1024,8 @@
       "wantedly.com": "Wantedly",
       "indeed.com": "Indeed",
       "glassdoor.com": "Glassdoor",
-      "xmcwh.com": "新芯股份"
+      "xmcwh.com": "新芯股份",
+      "career5.successfactors.eu": "BASF"
     };
     if (known[host]) {
       return known[host];

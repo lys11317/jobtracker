@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $root = (Resolve-Path ".").Path
 $extensionDir = Join-Path $root "outputs\job-tracker-extension"
-$versionedZipPath = Join-Path $root "outputs\job-tracker-extension-v1.4.6.zip"
+$versionedZipPath = Join-Path $root "outputs\job-tracker-extension-v1.4.7.zip"
 $failures = New-Object System.Collections.Generic.List[string]
 
 function Add-Failure {
@@ -68,11 +68,11 @@ if ($failures.Count -eq 0) {
     if ($manifest.manifest_version -ne 3) {
         Add-Failure "manifest_version must be 3"
     }
-    if ($manifest.name -ne "Job Tracker v1.4.6") {
-        Add-Failure "manifest name must be Job Tracker v1.4.6"
+    if ($manifest.name -ne "Job Tracker v1.4.7") {
+        Add-Failure "manifest name must be Job Tracker v1.4.7"
     }
-    if ($manifest.version -ne "1.4.6") {
-        Add-Failure "manifest version must be 1.4.6"
+    if ($manifest.version -ne "1.4.7") {
+        Add-Failure "manifest version must be 1.4.7"
     }
     if ($manifest.action.default_popup -ne "popup.html") {
         Add-Failure "default popup must be popup.html"
@@ -100,7 +100,7 @@ if ($failures.Count -eq 0) {
 
     Assert-Contains $popupHtml "popup.css" "popup stylesheet"
     Assert-Contains $popupHtml "popup.js" "popup script"
-    Assert-Contains $popupHtml "Job Tracker v1.4.6" "popup English version title"
+    Assert-Contains $popupHtml "Job Tracker v1.4.7" "popup English version title"
     Assert-Contains $popupHtml "id=`"capture-form`"" "popup capture form"
     Assert-Contains $popupHtml "id=`"candidate-panel`"" "candidate panel"
     Assert-Contains $popupHtml "id=`"candidate-list`"" "candidate list"
@@ -118,7 +118,7 @@ if ($failures.Count -eq 0) {
 
     Assert-Contains $dashboardHtml "dashboard.css" "dashboard stylesheet"
     Assert-Contains $dashboardHtml "dashboard.js" "dashboard script"
-    Assert-Contains $dashboardHtml "Job Tracker v1.4.6" "dashboard English version title"
+    Assert-Contains $dashboardHtml "Job Tracker v1.4.7" "dashboard English version title"
     Assert-Contains $dashboardHtml "id=`"records-body`"" "dashboard table body"
     Assert-Contains $dashboardHtml "id=`"search-input`"" "dashboard search"
     Assert-Contains $dashboardHtml "id=`"status-filter`"" "dashboard status filter"
@@ -208,6 +208,10 @@ if ($failures.Count -eq 0) {
     Assert-Contains $parserJs "function parseJobPage" "parser function"
     Assert-Contains $parserJs "function parseApplicationCards" "application card parser"
     Assert-Contains $parserJs "function parseTimedDeliveryCards" "timed delivery parser"
+    Assert-Contains $parserJs "function parseSuccessFactorsApplicationCards" "SuccessFactors application card parser"
+    Assert-Contains $parserJs "function extractSuccessFactorsApplicationRoleRow" "SuccessFactors role extractor"
+    Assert-Contains $parserJs "function parseWorkdayApplicationCards" "Workday application table parser"
+    Assert-Contains $parserJs "function extractWorkdayApplicationRoleRow" "Workday role extractor"
     Assert-Contains $parserJs "function extractTimedDeliveryRoleRow" "timed delivery role extractor"
     Assert-Contains $parserJs "function extractDeliveryDateTime" "delivery date-time extractor"
     Assert-Contains $parserJs "function parsePreferenceApplicationCards" "preference application card parser"
@@ -229,6 +233,11 @@ if ($failures.Count -eq 0) {
     Assert-Contains $parserJs "function inferCompanyFromHotjobTenant" "hotjob tenant company helper"
     Assert-Contains $parserJs '"goertek": "Goertek"' "Goertek hotjob tenant company"
     Assert-Contains $parserJs '".hotjob.cn"' "hotjob tenant host guard"
+    Assert-Contains $parserJs "function parseEnglishDate" "English date parser"
+    Assert-Contains $parserJs "successfactors" "SuccessFactors host marker"
+    Assert-Contains $parserJs "myworkdaysite.com" "Workday host marker"
+    Assert-Contains $parserJs "BASF" "BASF company marker"
+    Assert-Contains $parserJs "Onto Innovation" "Onto company marker"
     Assert-Contains $parserJs "function isGenericRecruitingTitlePart" "generic recruiting title filter"
     Assert-Contains $parserJs "app.mokahr.com" "Moka host marker"
     Assert-Contains $parserJs "投递时间：" "explicit applied time marker"
@@ -237,6 +246,11 @@ if ($failures.Count -eq 0) {
     Assert-Contains $parserJs "进入面试环节" "application interview marker"
     Assert-Contains $parserJs "第 1 志愿" "preference marker"
     Assert-Contains $parserJs "投递简历" "resume submitted marker"
+    Assert-Contains $parserJs "Review your applications" "SuccessFactors applications section marker"
+    Assert-Contains $parserJs "Applied On:" "SuccessFactors applied date marker"
+    Assert-Contains $parserJs "Requisition ID:" "SuccessFactors requisition marker"
+    Assert-Contains $parserJs "Date Submitted" "Workday date submitted marker"
+    Assert-Contains $parserJs "Under Consideration" "Workday status marker"
     Assert-Contains $parserJs "投递记录" "Moka application record marker"
     Assert-Contains $parserJs "项目：" "Moka project marker"
     Assert-Contains $parserJs "我的投递" "hotjob application marker"
@@ -273,7 +287,7 @@ if ($failures.Count -gt 0) {
 }
 
 if (-not (Test-Path -LiteralPath $versionedZipPath)) {
-    Add-Failure "Missing versioned zip: outputs\job-tracker-extension-v1.4.6.zip"
+    Add-Failure "Missing versioned zip: outputs\job-tracker-extension-v1.4.7.zip"
 }
 
 if ($failures.Count -gt 0) {
