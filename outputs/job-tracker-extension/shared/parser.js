@@ -77,6 +77,11 @@
       return workdayCandidates;
     }
 
+    const mokahrVolunteerCandidates = parseMokahrVolunteerApplicationCards(context);
+    if (mokahrVolunteerCandidates.length > 0) {
+      return mokahrVolunteerCandidates;
+    }
+
     const mokahrCandidates = parseMokahrApplicationCards(context);
     if (mokahrCandidates.length > 0) {
       return mokahrCandidates;
@@ -340,6 +345,7 @@
       const cardText = cardLines.join("\n");
       const appliedDate = extractAppliedDate(cardText) || extractStandaloneDate(cardText) || context.today;
       const company = sanitizeCompanyName(firstNonEmpty(
+        inferCompanyFromMokahrTenant(location.href),
         inferCompanyFromTitle(context.titleText),
         inferCompanyFromVisibleText(lines),
         inferCompanyFromHost(context.host)
@@ -366,8 +372,72 @@
     return candidates;
   }
 
+  function parseMokahrVolunteerApplicationCards(context) {
+    const lines = context.lines;
+    if (!isMokahrHost(context.host) || !/第\s*\d+\s*志愿|第 1 志愿/.test(context.visibleText)) {
+      return [];
+    }
+
+    const roleRows = lines.map((line, index) => extractMokahrVolunteerRoleRow(lines, index)).filter(Boolean);
+    if (roleRows.length === 0) {
+      return [];
+    }
+
+    const company = sanitizeCompanyName(firstNonEmpty(
+      inferCompanyFromMokahrTenant(location.href),
+      inferCompanyFromTitle(context.titleText),
+      inferCompanyFromVisibleText(lines),
+      inferCompanyFromHost(context.host)
+    ));
+    const candidates = [];
+    const seen = new Set();
+    roleRows.forEach((row, rowIndex) => {
+      const nextRoleIndex = roleRows[rowIndex + 1] ? roleRows[rowIndex + 1].index : lines.length;
+      const cardLines = lines.slice(row.index, nextRoleIndex);
+      const cardText = cardLines.join("\n");
+      const appliedDate = extractAppliedDate(cardText) || extractStandaloneDate(cardText) || context.today;
+      const statusText = extractMokahrStatusText(cardLines);
+      const key = [company, row.role, appliedDate].join("|");
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      candidates.push({
+        company,
+        role: row.role,
+        appliedDate,
+        channel: inferChannelFromLines([row.role].concat(cardLines)) || inferChannel(context.host),
+        jobLink: location.href,
+        statusLink: location.href,
+        status: inferApplicationStatus(statusText || cardText),
+        statusUpdatedDate: appliedDate,
+        notes: ""
+      });
+    });
+
+    return candidates;
+  }
+
   function isMokahrHost(host) {
     return host === "app.mokahr.com" || host.endsWith(".mokahr.com");
+  }
+
+  function extractMokahrVolunteerRoleRow(lines, index) {
+    const marker = cleanText(lines[index]);
+    const inlineMatch = marker.match(/^第\s*\d+\s*志愿\s+(.+)$/);
+    if (!inlineMatch && !/^第\s*\d+\s*志愿$/.test(marker)) {
+      return null;
+    }
+
+    const role = cleanText(inlineMatch ? inlineMatch[1] : lines[index + 1]);
+    if (!isPlausibleMokahrVolunteerRole(role)) {
+      return null;
+    }
+
+    return {
+      index,
+      role
+    };
   }
 
   function extractMokahrApplicationRoleRow(lines, index) {
@@ -379,6 +449,20 @@
       index,
       role
     };
+  }
+
+  function isPlausibleMokahrVolunteerRole(line) {
+    const value = cleanText(line);
+    if (!value || !/[\u4e00-\u9fa5A-Za-z]/.test(value)) {
+      return false;
+    }
+    if (/返回|我的简历|投递记录|个人资料|修改申请|撤回|Powered by|Moka|项目[:：]|状态[:：]|申请成功|第\s*\d+\s*志愿/i.test(value)) {
+      return false;
+    }
+    if (/^\d{1,2}:\d{2}$/.test(value)) {
+      return false;
+    }
+    return true;
   }
 
   function isPlausibleMokahrApplicationRole(line) {
@@ -396,7 +480,7 @@
   }
 
   function extractMokahrStatusText(lines) {
-    return lines.find((line) => /简历初筛|业务复筛|面试安排|Offer沟通|录用|筛选|面试|Offer|未通过|已拒绝/.test(line)) || "";
+    return lines.find((line) => /申请成功|已投递|简历初筛|业务复筛|面试安排|Offer沟通|录用|筛选|面试|Offer|未通过|已拒绝/.test(line)) || "";
   }
 
   function parseHotjobApplicationCards(context) {
@@ -885,7 +969,7 @@
     if (/Under Consideration|In Review|In Progress|Review/i.test(value)) return "简历筛选中";
     if (/已查看/.test(value)) return "已查看";
     if (/Thanks for your application|Application Received|Submitted|Applied/i.test(value)) return "已投递";
-    if (/官网投递|投递简历/.test(value)) return "已投递";
+    if (/官网投递|投递简历|申请成功/.test(value)) return "已投递";
     return "已投递";
   }
 
@@ -999,6 +1083,10 @@
         }
       }
     }
+    const recruitingTitle = cleanText(text).match(/^(.+?)(?:校园招聘|社会招聘|招聘官网|招聘门户|人才招聘|招聘)$/);
+    if (recruitingTitle) {
+      return sanitizeCompanyName(recruitingTitle[1]);
+    }
     const cleaned = sanitizeCompanyName(text);
     const knownBrand = cleaned.match(/^(DJI\s*大疆|大疆|新凯来|三环集团|拓竹科技)/i);
     if (knownBrand) {
@@ -1041,6 +1129,20 @@
     const parts = host.split(".");
     const candidate = parts.length > 1 ? parts[parts.length - 2] : parts[0];
     return cleanText(candidate.replace(/[-_]/g, " ")).replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+
+  function inferCompanyFromMokahrTenant(href) {
+    const value = String(href || "");
+    if (!/mokahr\.com/i.test(value)) {
+      return "";
+    }
+    const match = value.match(/\/(?:campus-recruitment|social-recruitment)\/([^/?#]+)/i);
+    const tenant = match ? match[1].toLowerCase() : "";
+    const knownTenants = {
+      "3peakic": "思瑞浦",
+      "hdzn": "中科光电"
+    };
+    return knownTenants[tenant] || "";
   }
 
   function inferCompanyFromZhiyeTenant(host) {

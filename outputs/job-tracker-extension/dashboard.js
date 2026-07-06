@@ -1,5 +1,16 @@
 import { STATUS_OPTIONS, getToday, statusTone } from "./shared/statuses.js";
-import { deleteRecord, downloadCsv, getRecords, importCsvRecords, normalizeRecord, saveRecord, sortRecords, updateRecord, exportRecordsToCsv } from "./shared/storage.js";
+import {
+  deleteRecord,
+  downloadCsv,
+  exportRecordsToCsv,
+  getRecords,
+  importCsvRecords,
+  normalizeRecord,
+  saveRecord,
+  sortRecords,
+  updateRecord
+} from "./shared/storage.js";
+import { downloadPdf } from "./shared/pdf-export.js";
 
 let records = [];
 let editingId = "";
@@ -21,6 +32,7 @@ async function init() {
 function cacheElements() {
   els.addButton = document.getElementById("add-record-button");
   els.exportButton = document.getElementById("export-csv-button");
+  els.exportPdfButton = document.getElementById("export-pdf-button");
   els.dialog = document.getElementById("record-dialog");
   els.form = document.getElementById("job-form");
   els.dialogTitle = document.getElementById("dialog-title");
@@ -62,6 +74,10 @@ function bindEvents() {
     exportRecordsToCsv(records);
     downloadCsv(records);
     showToast("CSV 已导出");
+  });
+  els.exportPdfButton.addEventListener("click", () => {
+    downloadPdf(records);
+    showToast("PDF 已生成");
   });
   els.closeDialogButton.addEventListener("click", closeRecordDialog);
   els.cancelButton.addEventListener("click", closeRecordDialog);
@@ -158,7 +174,7 @@ function resetForm(record) {
     channel: "",
     jobLink: "",
     statusLink: "",
-    status: "准备投递",
+    status: STATUS_OPTIONS[0].label,
     statusUpdatedDate: today,
     notes: ""
   };
@@ -219,7 +235,7 @@ async function removeRecord(id) {
     showToast("没有找到这条记录");
     return;
   }
-  if (!confirm(`删除「${record.company} - ${record.role}」？`)) {
+  if (!confirm(`删除“${record.company} - ${record.role}”？`)) {
     return;
   }
   await deleteRecord(id);
@@ -302,7 +318,7 @@ async function importSelectedCsv(event) {
 
 function appendTextCell(row, value, className) {
   const cell = document.createElement("td");
-  cell.textContent = value || "—";
+  cell.textContent = value || "-";
   if (value) {
     cell.title = value;
   }
@@ -326,7 +342,7 @@ function appendLinkCell(row, value) {
     link.textContent = "打开";
     cell.appendChild(link);
   } else {
-    cell.textContent = "—";
+    cell.textContent = "-";
     cell.classList.add("cell-muted");
   }
   row.appendChild(cell);

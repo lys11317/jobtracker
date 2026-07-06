@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "Job Tracker v1.4.7",
+  "name": "Job Tracker v1.6.1",
   "description": "Capture job application details from recruiting pages and manage job-search records locally.",
-  "version": "1.4.7",
+  "version": "1.6.1",
   "action": {
-    "default_title": "Job Tracker v1.4.7",
+    "default_title": "Job Tracker v1.6.1",
     "default_popup": "popup.html"
   },
   "permissions": [
